@@ -10,8 +10,8 @@ pub const File = struct {
 pub const Term = union(enum) {
     function: *const Function,
     let: *const Let,
-    ifTerm: *const If,
-    varTerm: *const Var,
+    ifTerm: If,
+    varTerm: Var,
     binary: *const Binary,
     int: Int,
     str: Str,
@@ -87,76 +87,76 @@ pub const ValidTerms = enum {
 };
 
 pub const If = struct {
-    kind: []const u8,
-    condition: Term,
-    then: Term,
-    otherwise: Term,
+    kind: ValidTerms,
+    condition: *const Term,
+    then: *const Term,
+    otherwise: *const Term,
     location: Loc,
 };
 pub const Let = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     name: Parameter,
     value: Term,
     next: Term,
     location: Loc,
 };
 pub const Str = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     value: []const u8,
     location: Loc,
 };
 pub const Bool = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     value: bool,
     location: Loc,
 };
 pub const Int = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     value: i32,
     location: Loc,
 };
 pub const Binary = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     lhs: Term,
-    op: []const u8,
+    op: BinaryOp,
     rhs: Term,
     location: Loc,
 };
 pub const Call = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     callee: Term,
     arguments: ArrayList(Term),
     location: Loc,
 };
 pub const Function = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     parameters: ArrayList(Parameter),
     value: Term,
     location: Loc,
 };
 pub const Print = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     value: Term,
     location: Loc,
 };
 pub const First = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     value: Term,
     location: Loc,
 };
 pub const Second = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     value: Term,
     location: Loc,
 };
 pub const Tuple = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     first: Term,
     second: Term,
     location: Loc,
 };
 pub const Var = struct {
-    kind: []const u8,
+    kind: ValidTerms,
     text: []const u8,
     location: Loc,
 };
