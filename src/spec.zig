@@ -1,4 +1,5 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
 
 pub const File = struct {
     name: []const u8,
@@ -7,16 +8,16 @@ pub const File = struct {
 };
 
 pub const Term = union(enum) {
-    function: *Function,
-    let: *Let,
-    ifTerm: *If,
-    varTerm: *Var,
-    binary: *Binary,
+    function: *const Function,
+    let: *const Let,
+    ifTerm: *const If,
+    varTerm: *const Var,
+    binary: *const Binary,
     int: Int,
     str: Str,
     boolean: Bool,
-    call: *Call,
-    print: *Print,
+    call: *const Call,
+    print: *const Print,
     tuple: *Tuple,
 };
 
@@ -117,19 +118,19 @@ pub const Int = struct {
 pub const Binary = struct {
     kind: []const u8,
     lhs: Term,
-    op: BinaryOp,
+    op: []const u8,
     rhs: Term,
     location: Loc,
 };
 pub const Call = struct {
     kind: []const u8,
     callee: Term,
-    arguments: []Term,
+    arguments: ArrayList(Term),
     location: Loc,
 };
 pub const Function = struct {
     kind: []const u8,
-    parameters: []Parameter,
+    parameters: ArrayList(Parameter),
     value: Term,
     location: Loc,
 };

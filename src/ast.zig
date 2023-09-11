@@ -1,6 +1,7 @@
 const std = @import("std");
 const spec = @import("spec.zig");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const ParserState = enum { root, parsing };
 
@@ -99,13 +100,19 @@ pub const ASTParser = struct {
         return loc;
     }
 
-    fn parseParameters(self: *@This()) Error!void {
+    fn parseParameters(self: *@This()) Error!ArrayList(spec.Parameter) {
+        var params = ArrayList(spec.Parameter).init(self.allocator);
+
         while (true) {
             const token = try self.getSourceNext();
             switch (token) {
                 .object_begin => {
                     self.currentLevel += 1;
-                    try self.parseParameter();
+                    const param = try self.parseParameter();
+                    params.append(param) catch |err| {
+                        log.err("Error appending parameter: {any}", .{err});
+                        return Error.ParserError;
+                    };
                     continue;
                 },
                 .array_begin => {
@@ -120,9 +127,10 @@ pub const ASTParser = struct {
                 },
             }
         }
+        return params;
     }
 
-    fn parseParameter(self: *@This()) Error!void {
+    fn parseParameter(self: *@This()) Error!spec.Parameter {
         var param: spec.Parameter = undefined;
         while (true) {
             const token = try self.getSourceNext();
@@ -151,6 +159,7 @@ pub const ASTParser = struct {
         }
 
         self.println("Parameter(text={s}, location=...)", .{param.text});
+        return param;
     }
 
     fn parseLet(self: *@This()) Error!spec.Let {
@@ -164,14 +173,11 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "name")) {
-                        // TODO assign
-                        try self.parseParameter();
+                        let.name = try self.parseParameter();
                     } else if (std.mem.eql(u8, value, "value")) {
-                        // TODO assign
-                        try self.parseTerm(value);
+                        let.value = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "next")) {
-                        // TODO assign
-                        try self.parseTerm(value);
+                        let.next = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         let.location = try self.parseLoc();
                     }
@@ -196,11 +202,9 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "parameters")) {
-                        // TODO - assign
-                        try self.parseParameters();
+                        function.parameters = try self.parseParameters();
                     } else if (std.mem.eql(u8, value, "value")) {
-                        // TODO - assign
-                        try self.parseTerm(value);
+                        function.value = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         function.location = try self.parseLoc();
                     }
@@ -214,9 +218,10 @@ pub const ASTParser = struct {
         return function;
     }
 
-    fn parseBinaryOp(self: *@This()) Error!void {
+    fn parseBinaryOp(self: *@This()) Error![]const u8 {
         const value = try self.getString();
         self.println("BinaryOp(value={s})", .{value});
+        return value;
     }
 
     fn parseBinary(self: *@This()) Error!spec.Binary {
@@ -232,14 +237,11 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "lhs")) {
-                        // TODO - assign
-                        try self.parseTerm(value);
+                        bin.lhs = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "op")) {
-                        // TODO - assign
-                        try self.parseBinaryOp();
+                        bin.op = try self.parseBinaryOp();
                     } else if (std.mem.eql(u8, value, "rhs")) {
-                        // TODO - assign
-                        try self.parseTerm(value);
+                        bin.rhs = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         bin.location = try self.parseLoc();
                     }
@@ -317,11 +319,9 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "callee")) {
-                        // TODO -  call.callee = try self.parseTerm(value);
-                        try self.parseTerm(value);
+                        call.callee = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "arguments")) {
-                        // TODO - call.arguments = try self.parseTerms(value);
-                        try self.parseTerms(value);
+                        call.arguments = try self.parseTerms(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         call.location = try self.parseLoc();
                     }
@@ -348,8 +348,7 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "value")) {
-                        // TODO print.value = try self.parseTerm(value);
-                        try self.parseTerm(value);
+                        print.value = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         print.location = try self.parseLoc();
                     }
@@ -376,12 +375,11 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "condition")) {
-                        // TODO specIf.condition = try self.parseTerm(value);
-                        try self.parseTerm(value);
+                        specIf.condition = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "then")) {
-                        try self.parseTerm(value);
+                        specIf.then = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "otherwise")) {
-                        try self.parseTerm(value);
+                        specIf.otherwise = try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         specIf.location = try self.parseLoc();
                     }
@@ -404,13 +402,18 @@ pub const ASTParser = struct {
         std.debug.print("\n", .{});
     }
 
-    fn parseTerms(self: *@This(), owner: []const u8) Error!void {
+    fn parseTerms(self: *@This(), owner: []const u8) Error!ArrayList(spec.Term) {
+        var terms = ArrayList(spec.Term).init(self.allocator);
         while (true) {
             const token = try self.getSourceNext();
             switch (token) {
                 .object_begin => {
                     self.currentLevel += 1;
-                    try self.parseTerm(owner);
+                    const term = try self.parseTerm(owner);
+                    terms.append(term) catch |err| {
+                        log.err("Error appending term: {any}", .{err});
+                        return Error.ParserError;
+                    };
                     continue;
                 },
                 .array_begin => {
@@ -425,9 +428,11 @@ pub const ASTParser = struct {
                 },
             }
         }
+        return terms;
     }
 
-    fn parseTerm(self: *@This(), owner: []const u8) Error!void {
+    fn parseTerm(self: *@This(), owner: []const u8) Error!spec.Term {
+        var term: spec.Term = undefined;
         while (true) {
             const token = try self.getSourceNext();
 
@@ -453,39 +458,47 @@ pub const ASTParser = struct {
 
                         const kindEnum = std.meta.stringToEnum(spec.ValidTerms, kind) orelse {
                             log.err("Found an invalid term kind={s}", .{kind});
-                            return;
+                            return Error.ParserError;
                         };
                         switch (kindEnum) {
                             .Let => {
-                                _ = try self.parseLet();
+                                const let = &try self.parseLet();
+                                term = spec.Term{ .let = let };
                                 break;
                             },
                             .Function => {
-                                _ = try self.parseFunction();
+                                const function = &try self.parseFunction();
+                                term = spec.Term{ .function = function };
                                 break;
                             },
                             .Binary => {
-                                _ = try self.parseBinary();
+                                const binary = &try self.parseBinary();
+                                term = spec.Term{ .binary = binary };
                                 break;
                             },
                             .Int => {
-                                _ = try self.parseInt();
+                                const int = try self.parseInt();
+                                term = spec.Term{ .int = int };
                                 break;
                             },
                             .Var => {
-                                _ = try self.parseVar();
+                                const varTerm = &try self.parseVar();
+                                term = spec.Term{ .varTerm = varTerm };
                                 break;
                             },
                             .Call => {
-                                _ = try self.parseCall();
+                                const call = &try self.parseCall();
+                                term = spec.Term{ .call = call };
                                 break;
                             },
                             .Print => {
-                                _ = try self.parsePrint();
+                                const print = &try self.parsePrint();
+                                term = spec.Term{ .print = print };
                                 break;
                             },
                             .If => {
-                                _ = try self.parseIf();
+                                const ifTerm = &try self.parseIf();
+                                term = spec.Term{ .ifTerm = ifTerm };
                                 break;
                             },
                             else => |k| {
@@ -502,6 +515,7 @@ pub const ASTParser = struct {
                 },
             }
         }
+        return term;
     }
 
     pub fn next(self: *ASTParser) !bool {
@@ -509,7 +523,7 @@ pub const ASTParser = struct {
         switch (token) {
             .string => |s| {
                 if (std.mem.eql(u8, s, "expression")) {
-                    try self.parseTerm("expression");
+                    _ = try self.parseTerm("expression");
                 } else if (std.mem.eql(u8, s, "location")) {
                     _ = try self.parseLoc();
                 }
