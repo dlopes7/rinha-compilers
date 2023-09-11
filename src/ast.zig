@@ -115,7 +115,7 @@ pub const ASTParser = struct {
                     break;
                 },
                 else => |err| {
-                    log.err("parseParameters - expected array_begin, found {any}", .{err});
+                    log.err("parseParameters - expected object_begin, found {any}", .{err});
                     return Error.ParserError;
                 },
             }
@@ -293,12 +293,65 @@ pub const ASTParser = struct {
         return variable;
     }
 
+    fn parseCall(self: *@This()) Error!spec.Call {
+        var call: spec.Call = undefined;
+        while (true) {
+            const token = try self.getSourceNext();
+            switch (token) {
+                .object_end => {
+                    self.currentLevel -= 1;
+                    break;
+                },
+                .string => |value| {
+                    if (std.mem.eql(u8, value, "callee")) {
+                        // TODO -  call.callee = try self.parseTerm(value);
+                        try self.parseTerm(value);
+                    } else if (std.mem.eql(u8, value, "arguments")) {
+                        // TODO - call.arguments = try self.parseTerms(value);
+                        try self.parseTerms(value);
+                    } else if (std.mem.eql(u8, value, "location")) {
+                        call.location = try self.parseLoc();
+                    }
+                },
+                else => |err| {
+                    log.err("parseVar - expected string, found {any}", .{err});
+                    return Error.ParserError;
+                },
+            }
+        }
+        self.print("Call({any})", .{call.callee});
+        return call;
+    }
+
     fn print(self: *@This(), comptime format: []const u8, args: anytype) void {
         for (0..self.currentLevel) |_| {
             std.debug.print("  ", .{});
         }
         std.debug.print(format, args);
         std.debug.print("\n", .{});
+    }
+
+    fn parseTerms(self: *@This(), owner: []const u8) Error!void {
+        while (true) {
+            const token = try self.getSourceNext();
+            switch (token) {
+                .object_begin => {
+                    self.currentLevel += 1;
+                    try self.parseTerm(owner);
+                    continue;
+                },
+                .array_begin => {
+                    continue;
+                },
+                .array_end => {
+                    break;
+                },
+                else => |err| {
+                    log.err("parseTerms - expected object_begin, found {any}", .{err});
+                    return Error.ParserError;
+                },
+            }
+        }
     }
 
     fn parseTerm(self: *@This(), owner: []const u8) Error!void {
@@ -348,6 +401,10 @@ pub const ASTParser = struct {
                             },
                             .Var => {
                                 _ = try self.parseVar();
+                                break;
+                            },
+                            .Call => {
+                                _ = try self.parseCall();
                                 break;
                             },
                             else => |k| {
