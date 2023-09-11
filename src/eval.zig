@@ -1,6 +1,7 @@
 const std = @import("std");
 const spec = @import("spec.zig");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const SupportedValues = union(enum) {
     int: i32,
@@ -10,17 +11,35 @@ const SupportedValues = union(enum) {
 
 const Error = error{ EvalError, CompilerError, OutOfMemory };
 
-fn innerEval(term: spec.Term, comptime T: type) Error!T {
-    _ = term;
+fn evalParameters(params: ArrayList(spec.Parameter), allocator: Allocator) Error!ArrayList([]const u8) {
+    var result = ArrayList([]const u8).init(allocator);
+    for (params.items) |param| {
+        const value = evalParameter(param);
+        try result.append(value);
+    }
+    return result;
+}
+fn evalParameter(param: spec.Parameter) []const u8 {
+    return param.text;
 }
 
 pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
     switch (term) {
         .function => |f| {
             std.debug.print("eval function {any}\n", .{f});
+            const parameters = try evalParameters(f.parameters, allocator);
+            _ = parameters;
+            const value = try eval(f.value.*, allocator);
+            _ = value;
         },
-        .let => |v| {
-            std.debug.print("eval let {any}\n", .{v});
+        .let => |l| {
+            std.debug.print("eval let {any}\n", .{l});
+            const name = evalParameter(l.name);
+            _ = name;
+            const value = try eval(l.value.*, allocator);
+            _ = value;
+            const next = try eval(l.next.*, allocator);
+            _ = next;
         },
         .ifTerm => |v| {
             std.debug.print("eval if {any}\n", .{v});

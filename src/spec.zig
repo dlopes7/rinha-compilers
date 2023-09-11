@@ -18,7 +18,7 @@ pub const Term = union(enum) {
     boolean: Bool,
     call: Call,
     print: Print,
-    tuple: *Tuple,
+    tuple: Tuple,
 };
 
 pub const Loc = struct {
