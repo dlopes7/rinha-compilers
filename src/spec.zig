@@ -4,27 +4,7 @@ const ArrayList = std.ArrayList;
 pub const File = struct {
     name: []const u8,
     expression: Term,
-    location: Loc,
-};
-
-pub const Term = union(enum) {
-    function: Function,
-    let: Let,
-    ifTerm: If,
-    varTerm: Var,
-    binary: Binary,
-    int: Int,
-    str: Str,
-    boolean: Bool,
-    call: Call,
-    print: Print,
-    tuple: Tuple,
-};
-
-pub const Loc = struct {
-    start: u32,
-    end: u32,
-    filename: []const u8,
+    location: *Loc,
 };
 
 pub const BinaryOp = enum {
@@ -41,11 +21,6 @@ pub const BinaryOp = enum {
     Gte,
     And,
     Or,
-};
-
-pub const Parameter = struct {
-    text: []const u8,
-    location: Loc,
 };
 
 pub const ValidKeys = enum {
@@ -86,18 +61,43 @@ pub const ValidTerms = enum {
     Var,
 };
 
+pub const Term = union(enum) {
+    function: *const Function,
+    let: *const Let,
+    ifTerm: *const If,
+    varTerm: *const Var,
+    binary: *const Binary,
+    int: *const Int,
+    str: *const Str,
+    boolean: *const Bool,
+    call: *const Call,
+    print: *const Print,
+    tuple: *const Tuple,
+};
+
+pub const Loc = struct {
+    start: u32,
+    end: u32,
+    filename: []const u8,
+};
+
+pub const Parameter = struct {
+    text: []const u8,
+    location: Loc,
+};
+
 pub const If = struct {
     kind: ValidTerms,
-    condition: *const Term,
-    then: *const Term,
-    otherwise: *const Term,
+    condition: Term,
+    then: Term,
+    otherwise: Term,
     location: Loc,
 };
 pub const Let = struct {
     kind: ValidTerms,
     name: Parameter,
-    value: *const Term,
-    next: *const Term,
+    value: Term,
+    next: Term,
     location: Loc,
 };
 pub const Str = struct {
@@ -117,42 +117,42 @@ pub const Int = struct {
 };
 pub const Binary = struct {
     kind: ValidTerms,
-    lhs: *const Term,
+    lhs: Term,
     op: BinaryOp,
-    rhs: *const Term,
+    rhs: Term,
     location: Loc,
 };
 pub const Call = struct {
     kind: ValidTerms,
-    callee: *const Term,
+    callee: Term,
     arguments: ArrayList(Term),
     location: Loc,
 };
 pub const Function = struct {
     kind: ValidTerms,
     parameters: ArrayList(Parameter),
-    value: *const Term,
+    value: Term,
     location: Loc,
 };
 pub const Print = struct {
     kind: ValidTerms,
-    value: *const Term,
+    value: Term,
     location: Loc,
 };
 pub const First = struct {
     kind: ValidTerms,
-    value: *const Term,
+    value: Term,
     location: Loc,
 };
 pub const Second = struct {
     kind: ValidTerms,
-    value: *const Term,
+    value: Term,
     location: Loc,
 };
 pub const Tuple = struct {
     kind: ValidTerms,
-    first: *const Term,
-    second: *const Term,
+    first: Term,
+    second: Term,
     location: Loc,
 };
 pub const Var = struct {
