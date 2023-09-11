@@ -49,7 +49,7 @@ pub const ASTParser = struct {
     fn parseRoot(self: *@This(), s: []const u8) !void {
         if (std.mem.eql(u8, s, "name")) {
             const value = try self.getString();
-            self.print("Found name {s}", .{value});
+            self.println("Found name {s}", .{value});
         } else if (std.mem.eql(u8, s, "expression")) {
             self.state = .parsing;
         }
@@ -95,7 +95,7 @@ pub const ASTParser = struct {
             }
         }
 
-        self.print("Loc(./{s}:{d}:{d})", .{ loc.filename, loc.start, loc.end });
+        self.println("Loc(./{s}:{d}:{d})", .{ loc.filename, loc.start, loc.end });
         return loc;
     }
 
@@ -150,16 +150,17 @@ pub const ASTParser = struct {
             }
         }
 
-        self.print("Parameter(text={s}, location=...)", .{param.text});
+        self.println("Parameter(text={s}, location=...)", .{param.text});
     }
 
-    fn parseLet(self: *@This()) Error!void {
+    fn parseLet(self: *@This()) Error!spec.Let {
+        var let: spec.Let = undefined;
         while (true) {
             const token = try self.getSourceNext();
             switch (token) {
                 .object_end => {
                     self.currentLevel -= 1;
-                    return;
+                    break;
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "name")) {
@@ -169,7 +170,7 @@ pub const ASTParser = struct {
                     } else if (std.mem.eql(u8, value, "next")) {
                         try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
-                        _ = try self.parseLoc();
+                        let.location = try self.parseLoc();
                     }
                 },
                 else => |err| {
@@ -178,6 +179,7 @@ pub const ASTParser = struct {
                 },
             }
         }
+        return let;
     }
 
     fn parseFunction(self: *@This()) Error!void {
@@ -207,7 +209,7 @@ pub const ASTParser = struct {
 
     fn parseBinaryOp(self: *@This()) Error!void {
         const value = try self.getString();
-        self.print("BinaryOp(value={s})", .{value});
+        self.println("BinaryOp(value={s})", .{value});
     }
 
     fn parseBinary(self: *@This()) Error!void {
@@ -263,7 +265,7 @@ pub const ASTParser = struct {
                 },
             }
         }
-        self.print("Int(value={d})", .{int.value});
+        self.println("Int(value={d})", .{int.value});
         return int;
     }
 
@@ -289,7 +291,7 @@ pub const ASTParser = struct {
                 },
             }
         }
-        self.print("Var({s})", .{variable.text});
+        self.println("Var({s})", .{variable.text});
         return variable;
     }
 
@@ -319,11 +321,71 @@ pub const ASTParser = struct {
                 },
             }
         }
-        self.print("Call({any})", .{call.callee});
+        self.println("Call({any})", .{call.location});
         return call;
     }
 
-    fn print(self: *@This(), comptime format: []const u8, args: anytype) void {
+    fn parsePrint(self: *@This()) Error!spec.Print {
+        var print: spec.Print = undefined;
+
+        while (true) {
+            const token = try self.getSourceNext();
+            switch (token) {
+                .object_end => {
+                    self.currentLevel -= 1;
+                    break;
+                },
+                .string => |value| {
+                    if (std.mem.eql(u8, value, "value")) {
+                        // TODO print.value = try self.parseTerm(value);
+                        try self.parseTerm(value);
+                    } else if (std.mem.eql(u8, value, "location")) {
+                        print.location = try self.parseLoc();
+                    }
+                },
+                else => |err| {
+                    log.err("parsePrint - expected string, found {any}", .{err});
+                    return Error.ParserError;
+                },
+            }
+        }
+
+        return print;
+    }
+
+    fn parseIf(self: *@This()) Error!spec.If {
+        var specIf: spec.If = undefined;
+
+        while (true) {
+            const token = try self.getSourceNext();
+            switch (token) {
+                .object_end => {
+                    self.currentLevel -= 1;
+                    break;
+                },
+                .string => |value| {
+                    if (std.mem.eql(u8, value, "condition")) {
+                        // TODO specIf.condition = try self.parseTerm(value);
+                        try self.parseTerm(value);
+                    } else if (std.mem.eql(u8, value, "then")) {
+                        try self.parseTerm(value);
+                    } else if (std.mem.eql(u8, value, "otherwise")) {
+                        try self.parseTerm(value);
+                    } else if (std.mem.eql(u8, value, "location")) {
+                        specIf.location = try self.parseLoc();
+                    }
+                },
+                else => |err| {
+                    log.err("parseIf - expected string, found {any}", .{err});
+                    return Error.ParserError;
+                },
+            }
+        }
+
+        return specIf;
+    }
+
+    fn println(self: *@This(), comptime format: []const u8, args: anytype) void {
         for (0..self.currentLevel) |_| {
             std.debug.print("  ", .{});
         }
@@ -360,7 +422,7 @@ pub const ASTParser = struct {
 
             switch (token) {
                 .object_begin => {
-                    self.print("parseTerm(owner={s}) object_begin", .{owner});
+                    self.println("parseTerm(owner={s}) object_begin", .{owner});
                     self.currentLevel += 1;
                     continue;
                 },
@@ -376,7 +438,7 @@ pub const ASTParser = struct {
                     if (std.mem.eql(u8, value, "kind")) {
                         const kind = try self.getString();
 
-                        self.print("parseTerm(owner={s}, kind={s})", .{ owner, kind });
+                        self.println("parseTerm(owner={s}, kind={s})", .{ owner, kind });
 
                         const kindEnum = std.meta.stringToEnum(spec.ValidTerms, kind) orelse {
                             log.err("Found an invalid term kind={s}", .{kind});
@@ -384,7 +446,7 @@ pub const ASTParser = struct {
                         };
                         switch (kindEnum) {
                             .Let => {
-                                try self.parseLet();
+                                _ = self.parseLet();
                                 break;
                             },
                             .Function => {
@@ -407,7 +469,16 @@ pub const ASTParser = struct {
                                 _ = try self.parseCall();
                                 break;
                             },
+                            .Print => {
+                                _ = try self.parsePrint();
+                                break;
+                            },
+                            .If => {
+                                _ = try self.parseIf();
+                                break;
+                            },
                             else => |k| {
+                                // TODO - Str, Bool, First, Second, Tuple
                                 log.err("Not implemented for kind {any}", .{k});
                                 break;
                             },
@@ -437,7 +508,7 @@ pub const ASTParser = struct {
             },
             .object_end, .end_of_document => return false,
             else => |key| {
-                self.print("Found an invalid key {any}", .{key});
+                self.println("Found an invalid key {any}", .{key});
                 return false;
             },
         }
@@ -457,7 +528,7 @@ pub const ASTParser = struct {
 
         var diagnostics = std.json.Diagnostics{};
         source.enableDiagnostics(&diagnostics);
-        defer log.debug("Line: {d}, Column: {d}", .{ diagnostics.getLine(), diagnostics.getColumn() });
+        defer log.debug("Line: {any}", .{diagnostics.getLine()});
 
         var parser = ASTParser{
             .allocator = allocator,
