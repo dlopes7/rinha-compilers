@@ -164,10 +164,13 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "name")) {
+                        // TODO assign
                         try self.parseParameter();
                     } else if (std.mem.eql(u8, value, "value")) {
+                        // TODO assign
                         try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "next")) {
+                        // TODO assign
                         try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         let.location = try self.parseLoc();
@@ -182,21 +185,24 @@ pub const ASTParser = struct {
         return let;
     }
 
-    fn parseFunction(self: *@This()) Error!void {
+    fn parseFunction(self: *@This()) Error!spec.Function {
+        var function: spec.Function = undefined;
         while (true) {
             const token = try self.getSourceNext();
             switch (token) {
                 .object_end => {
                     self.currentLevel -= 1;
-                    return;
+                    break;
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "parameters")) {
+                        // TODO - assign
                         try self.parseParameters();
                     } else if (std.mem.eql(u8, value, "value")) {
+                        // TODO - assign
                         try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
-                        _ = try self.parseLoc();
+                        function.location = try self.parseLoc();
                     }
                 },
                 else => |err| {
@@ -205,6 +211,7 @@ pub const ASTParser = struct {
                 },
             }
         }
+        return function;
     }
 
     fn parseBinaryOp(self: *@This()) Error!void {
@@ -212,7 +219,7 @@ pub const ASTParser = struct {
         self.println("BinaryOp(value={s})", .{value});
     }
 
-    fn parseBinary(self: *@This()) Error!void {
+    fn parseBinary(self: *@This()) Error!spec.Binary {
         var bin: spec.Binary = undefined;
         while (true) {
             const token = try self.getSourceNext();
@@ -221,14 +228,17 @@ pub const ASTParser = struct {
                 .object_end => {
                     self.currentLevel -= 1;
                     // self.print("parseBinary - object_end", .{});
-                    return;
+                    break;
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "lhs")) {
+                        // TODO - assign
                         try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "op")) {
+                        // TODO - assign
                         try self.parseBinaryOp();
                     } else if (std.mem.eql(u8, value, "rhs")) {
+                        // TODO - assign
                         try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         bin.location = try self.parseLoc();
@@ -240,6 +250,7 @@ pub const ASTParser = struct {
                 },
             }
         }
+        return bin;
     }
 
     fn parseInt(self: *@This()) Error!spec.Int {
@@ -446,15 +457,15 @@ pub const ASTParser = struct {
                         };
                         switch (kindEnum) {
                             .Let => {
-                                _ = self.parseLet();
+                                _ = try self.parseLet();
                                 break;
                             },
                             .Function => {
-                                try self.parseFunction();
+                                _ = try self.parseFunction();
                                 break;
                             },
                             .Binary => {
-                                try self.parseBinary();
+                                _ = try self.parseBinary();
                                 break;
                             },
                             .Int => {
