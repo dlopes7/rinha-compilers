@@ -29,3 +29,13 @@ pub fn main() !void {
     // const simple = parsedFile.value;
     // std.debug.print("simple {any}\n", .{simple});
 }
+
+test "Test whole thing" {
+    const allocator = std.testing.allocator;
+
+    const inputFile = try std.fs.cwd().openFile("../files/simple_sum.json", .{ .mode = std.fs.File.OpenMode.read_only });
+    defer inputFile.close();
+
+    var reader = inputFile.reader();
+    try ast.ASTParser.parse(allocator, reader);
+}

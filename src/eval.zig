@@ -26,20 +26,22 @@ fn evalParameter(param: spec.Parameter) []const u8 {
 pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
     switch (term) {
         .function => |f| {
-            std.debug.print("eval function {any}\n", .{f});
+            std.debug.print("eval function {any}\n", .{&f});
             const parameters = try evalParameters(f.parameters, allocator);
             _ = parameters;
-            const value = try eval(f.value.*, allocator);
+            const value = try eval(f.value, allocator);
             _ = value;
+            return SupportedValues{ .str = "function" };
         },
         .let => |l| {
             std.debug.print("eval let {any}\n", .{l});
             const name = evalParameter(l.name);
             _ = name;
-            const value = try eval(l.value.*, allocator);
+            const value = try eval(l.value, allocator);
             _ = value;
-            const next = try eval(l.next.*, allocator);
+            const next = try eval(l.next, allocator);
             _ = next;
+            return SupportedValues{ .str = "let" };
         },
         .ifTerm => |v| {
             std.debug.print("eval if {any}\n", .{v});
@@ -52,8 +54,8 @@ pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
 
             switch (bin.op) {
                 .Add => {
-                    const left = try eval(bin.lhs.*, allocator);
-                    const right = try eval(bin.rhs.*, allocator);
+                    const left = try eval(bin.lhs, allocator);
+                    const right = try eval(bin.rhs, allocator);
                     switch (left) {
                         .int => |l| {
                             switch (right) {
@@ -117,12 +119,13 @@ pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
             std.debug.print("eval call {any}\n", .{v});
         },
         .print => |v| {
-            std.debug.print("eval print {any}\n", .{v});
+            const value = try eval(l.value, allocator);
+            _ = value;
         },
         .tuple => |v| {
             std.debug.print("eval tuple {any}\n", .{v});
         },
     }
-    std.debug.print("EVAL -  unsupported term {any}\n", .{term});
+    std.debug.print("EVAL - unsupported term {any}\n", .{term});
     return Error.EvalError;
 }
