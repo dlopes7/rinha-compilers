@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/zig-out/bin/rinha-compilers",
-            "args": ["files/simple_sum.json"],
+            "args": ["files/david.json"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
