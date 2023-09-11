@@ -6,7 +6,7 @@ const ArrayList = std.ArrayList;
 
 const ParserState = enum { root, parsing };
 
-const Error = error{ ParserError, OutOfMemory };
+const Error = error{ ParserError, OutOfMemory, EvalError, CompilerError };
 
 fn createInit(alloc: std.mem.Allocator, comptime T: type, props: anytype) !*T {
     const new = try alloc.create(T);
@@ -612,18 +612,24 @@ pub const ASTParser = struct {
         return Error.ParserError;
     }
 
+    const NextElement = struct { term: ?spec.Term, end: bool };
+
     pub fn next(self: *ASTParser) !bool {
         var token = try self.source.next();
         // defer self.allocator.free(token);
         switch (token) {
             .string => |s| {
                 if (std.mem.eql(u8, s, "expression")) {
-                    var t = try self.parseTerm("expression");
-                    // self.println("********** Try to eval {any}", .{&t});
-                    _ = eval.eval(t, self.allocator) catch |err| {
-                        log.err("Error evaluating term: {any}", .{err});
-                        return Error.ParserError;
-                    };
+                    var program = try self.parseTerm("expression");
+                    // _ = try eval.eval(program, self.allocator);
+                    var terms: ArrayList(spec.Term) = ArrayList(spec.Term).init(self.allocator);
+                    try eval.traverse(program, &terms);
+                    var i: usize = terms.items.len;
+                    while (i > 0) {
+                        i -= 1;
+                        // self.println("Traversed term {any}", .{terms.items[i]});
+                        _ = try eval.eval(terms.items[i], self.allocator);
+                    }
                 } else if (std.mem.eql(u8, s, "location")) {
                     _ = try self.parseLoc();
                 }
@@ -637,7 +643,6 @@ pub const ASTParser = struct {
                 return false;
             },
         }
-
         return true;
     }
 
@@ -660,9 +665,8 @@ pub const ASTParser = struct {
             .allocator = allocator,
             .source = source,
         };
-        while (try parser.next()) {
-            // self.print("Line: {d}, Column: {d}", .{ diagnostics.getLine(), diagnostics.getColumn() });
-        }
+
+        while (try parser.next()) {}
 
         const elapsed = timer.read();
         log.debug("ASTParser.parse: {}us", .{elapsed / 1000});

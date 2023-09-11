@@ -4,9 +4,23 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const print = std.debug.print;
 
-const SupportedValues = union(enum) { int: i32, str: []const u8, bool: bool };
+const SupportedValues = union(enum) { int: i32, str: []const u8, bool: bool, funcDef: FunctionDefinition };
 
 const Error = error{ EvalError, CompilerError, OutOfMemory };
+
+var globals = std.StringHashMapUnmanaged(SupportedValues){};
+var invocations = std.StringHashMapUnmanaged(FunctionInvocation){};
+var variables = std.StringHashMapUnmanaged(SupportedValues){};
+
+const FunctionDefinition = struct {
+    name: []const u8,
+    parameters: ArrayList([]const u8),
+};
+
+const FunctionInvocation = struct {
+    name: []const u8,
+    arguments: ArrayList(SupportedValues),
+};
 
 fn evalParameters(params: ArrayList(spec.Parameter), allocator: Allocator) Error!ArrayList([]const u8) {
     var result = ArrayList([]const u8).init(allocator);
@@ -29,46 +43,121 @@ fn evalTerms(terms: ArrayList(spec.Term), allocator: Allocator) Error!ArrayList(
     return result;
 }
 
+pub fn traverse(term: spec.Term, list: *ArrayList(spec.Term)) !void {
+    try list.append(term);
+    switch (term) {
+        .function => |f| {
+            print("traverse function {any}\n", .{&f});
+            try traverse(f.value, list);
+        },
+        .let => |l| {
+            print("traverse let {any}\n", .{&l});
+            try traverse(l.value, list);
+            try traverse(l.next, list);
+        },
+        .ifTerm => |i| {
+            print("traverse if {any}\n", .{&i});
+            try traverse(i.condition, list);
+            try traverse(i.then, list);
+            try traverse(i.otherwise, list);
+        },
+        .varTerm => |v| {
+            print("traverse var {s}\n", .{v.text});
+        },
+        .binary => |bin| {
+            print("traverse binary {any}\n", .{&bin});
+            try traverse(bin.lhs, list);
+            try traverse(bin.rhs, list);
+        },
+        .int => |v| {
+            print("traverse int {any}\n", .{&v});
+        },
+        .str => |v| {
+            print("traverse str {any}\n", .{&v});
+        },
+        .boolean => |v| {
+            print("traverse boolean {any}\n", .{&v});
+        },
+        .call => |c| {
+            print("traverse call {any}\n", .{&c});
+            try traverse(c.callee, list);
+        },
+        .print => |p| {
+            print("traverse print {any}\n", .{&p});
+            try traverse(p.value, list);
+        },
+        .tuple => |v| {
+            print("traverse tuple {any}\n", .{&v});
+        },
+    }
+}
+
 pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
     switch (term) {
         .function => |f| {
-            // print("eval function {any}\n", .{f});
+            print("eval function {any}\n", .{&f});
             const parameters = try evalParameters(f.parameters, allocator);
-            _ = parameters;
+
             const value = try eval(f.value, allocator);
             _ = value;
 
-            // print("Function - (", .{});
-            // for (parameters.items) |param| {
-            //     print(" {s} ", .{param});
-            // }
-            // print(")\n", .{});
+            for (parameters.items) |param| {
+                print("Putting {s} in variables\n", .{param});
+            }
 
             return SupportedValues{ .str = "function" };
         },
         .let => |l| {
-            print("eval let {any}\n", .{l});
+            print("eval let {any}\n", .{&l});
             const name = evalParameter(l.name);
-            _ = name;
+
+            switch (l.value) {
+                .function => |f| {
+                    const params = try evalParameters(f.parameters, allocator);
+                    const fDef = SupportedValues{ .funcDef = FunctionDefinition{ .name = name, .parameters = params } };
+                    print("Putting {s} in functions\n", .{name});
+                    try globals.put(allocator, name, fDef);
+                    // try functions.put(allocator, name, fDef);
+                },
+
+                else => |v| {
+                    print("COMPILER ERROR - not supported let definition for {any}\n", .{v});
+                },
+            }
             const value = try eval(l.value, allocator);
             _ = value;
             const next = try eval(l.next, allocator);
             _ = next;
+
             // print("Let - {s}({any}) -> {any}", .{ name, value, next });
+
             return SupportedValues{ .str = "let" };
         },
-        .ifTerm => |v| {
-            print("eval if {any}\n", .{v});
+        .ifTerm => |i| {
+            print("eval if {any}\n", .{&i});
+            const condition = try eval(i.condition, allocator);
+            switch (condition) {
+                .bool => |b| {
+                    if (b) {
+                        return try eval(i.then, allocator);
+                    } else {
+                        return try eval(i.otherwise, allocator);
+                    }
+                },
+                else => |e| {
+                    print("COMPILER ERROR - not supported if condition for {any}\n", .{e});
+                },
+            }
         },
         .varTerm => |v| {
-            print("eval var {any}\n", .{v});
+            print("eval var {s}\n", .{v.text});
             return SupportedValues{ .str = v.text };
         },
         .binary => |bin| {
-            print("eval binary {any}\n", .{bin});
+            print("eval binary {any}\n", .{&bin});
 
             switch (bin.op) {
-                .Add => {
+                .Add, .Sub => |op| {
                     const left = try eval(bin.lhs, allocator);
                     const right = try eval(bin.rhs, allocator);
                     switch (left) {
@@ -76,15 +165,29 @@ pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
                             switch (right) {
                                 .int => |r| {
                                     // l is int, r is int
-                                    return SupportedValues{ .int = l + r };
+                                    switch (op) {
+                                        .Add => return SupportedValues{ .int = l + r },
+                                        .Sub => return SupportedValues{ .int = l - r },
+                                        else => {
+                                            print("COMPILER ERROR - unsupported binary op: {any} {any} {any}\n", .{ l, op, r });
+                                            return Error.CompilerError;
+                                        },
+                                    }
                                 },
                                 .str => |r| {
                                     // l is int, r is str
                                     const concatenated = try std.fmt.allocPrint(allocator, "{any}{any}", .{ l, r });
-                                    return SupportedValues{ .str = concatenated };
+                                    switch (op) {
+                                        .Add => return SupportedValues{ .str = concatenated },
+                                        else => {
+                                            print("COMPILER ERROR - unsupported binary op: {any} {any} {any}\n", .{ l, op, r });
+                                            return Error.CompilerError;
+                                        },
+                                    }
                                 },
-                                else => {
+                                else => |r| {
                                     // l is int, r is unsupported
+                                    print("COMPILER ERROR - unsupported binary op: {any} {any} {any}\n", .{ l, op, r });
                                     return Error.CompilerError;
                                 },
                             }
@@ -94,52 +197,105 @@ pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
                                 .int => |r| {
                                     // l is str, r is int
                                     const concatenated = try std.fmt.allocPrint(allocator, "{any}{any}", .{ l, r });
-                                    return SupportedValues{ .str = concatenated };
+                                    switch (op) {
+                                        .Add => return SupportedValues{ .str = concatenated },
+                                        else => {
+                                            print("COMPILER ERROR - unsupported binary op: {any} {any} {any}\n", .{ l, op, r });
+                                            return Error.CompilerError;
+                                        },
+                                    }
                                 },
                                 .str => |r| {
                                     // l is str, r is str
                                     const concatenated = try std.fmt.allocPrint(allocator, "{any}{any}", .{ l, r });
-                                    return SupportedValues{ .str = concatenated };
+                                    switch (op) {
+                                        .Add => return SupportedValues{ .str = concatenated },
+                                        else => {
+                                            print("COMPILER ERROR - unsupported binary op: {any} {any} {any}\n", .{ l, op, r });
+                                            return Error.CompilerError;
+                                        },
+                                    }
                                 },
                                 else => |r| {
                                     // l is str, r is unsupported
-                                    print("Compiler error:  cannot perform {any} on {any} and {any}\n", .{ bin.op, l, r });
+                                    print("COMPILER ERROR - cannot perform {any} on {any} and {any}\n", .{ bin.op, l, r });
                                     return Error.CompilerError;
                                 },
                             }
                         },
                         else => {
-                            print("Compiler error: cannot perform {any} on {any} and {any}\n", .{ bin.op, left, right });
+                            print("COMPILER ERROR - cannot perform {any} on {any} and {any}\n", .{ bin.op, left, right });
+                            return Error.CompilerError;
+                        },
+                    }
+                },
+                .Eq => {
+                    const left = try eval(bin.lhs, allocator);
+                    const right = try eval(bin.rhs, allocator);
+                    const result = std.meta.eql(left, right);
+                    print("Result of {any} == {any} = {any}\n", .{ left, right, result });
+                    return SupportedValues{ .bool = result };
+                },
+                .Lt => {
+                    const left = try eval(bin.lhs, allocator);
+                    const right = try eval(bin.rhs, allocator);
+                    switch (left) {
+                        .int => |l| {
+                            switch (right) {
+                                .int => |r| {
+                                    // l is int, r is int
+                                    return SupportedValues{ .bool = l < r };
+                                },
+                                else => |r| {
+                                    // l is int, r is unsupported
+                                    print("COMPILER ERROR - cannot perform {any} on {any} and {any}\n", .{ bin.op, l, r });
+                                    return Error.CompilerError;
+                                },
+                            }
+                        },
+                        else => {
+                            print("COMPILER ERROR - cannot perform {any} on {any} and {any}\n", .{ bin.op, left, right });
                             return Error.CompilerError;
                         },
                     }
                 },
 
                 else => {
-                    print("unsupported binary op {any}\n", .{bin.op});
+                    print("COMPILER ERROR - unsupported binary op {any}\n", .{bin.op});
                 },
             }
         },
         .int => |v| {
-            print("eval int {any}\n", .{v});
+            print("eval int {any}\n", .{&v});
             return SupportedValues{ .int = v.value };
         },
         .str => |v| {
+            print("eval str {any}\n", .{&v});
             return SupportedValues{ .str = v.value };
         },
         .boolean => |v| {
-            print("eval boolean {any}\n", .{v});
+            print("eval boolean {any}\n", .{&v});
         },
         .call => |c| {
-            print("eval call {any}\n", .{c});
-            const callee = try eval(c.callee, allocator);
-            _ = callee;
+            print("eval call {any}\n", .{&c});
             const arguments = try evalTerms(c.arguments, allocator);
-            _ = arguments;
+            const callee = try eval(c.callee, allocator);
+
+            switch (callee) {
+                .str => |text| {
+                    const fInvocation = FunctionInvocation{ .name = text, .arguments = arguments };
+                    print("Want to invoke {s} with {any}\n", .{ text, arguments.items });
+                    try invocations.put(allocator, text, fInvocation);
+                },
+                else => {
+                    print("unsupported callee {any}\n", .{callee});
+                },
+            }
+
             return SupportedValues{ .str = "call" };
         },
         .print => |p| {
-            // print("eval print {any}\n", .{p});
+            print("eval print {any}\n", .{&p});
             const value = try eval(p.value, allocator);
             switch (value) {
                 .int => |v| {
@@ -156,7 +312,7 @@ pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
             return SupportedValues{ .str = "print" };
         },
         .tuple => |v| {
-            print("eval tuple {any}\n", .{v});
+            print("eval tuple {any}\n", .{&v});
         },
     }
     print("EVAL - unsupported term {any}\n", .{term});
