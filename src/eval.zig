@@ -33,8 +33,8 @@ pub fn eval(term: spec.Term, allocator: Allocator) Error!SupportedValues {
 
             switch (bin.op) {
                 .Add => {
-                    const left = try eval(bin.lhs, allocator);
-                    const right = try eval(bin.rhs, allocator);
+                    const left = try eval(bin.lhs.*, allocator);
+                    const right = try eval(bin.rhs.*, allocator);
                     switch (left) {
                         .int => |l| {
                             switch (right) {

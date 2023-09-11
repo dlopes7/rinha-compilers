@@ -210,9 +210,9 @@ pub const ASTParser = struct {
                     if (std.mem.eql(u8, value, "name")) {
                         let.name = try self.parseParameter();
                     } else if (std.mem.eql(u8, value, "value")) {
-                        let.value = try self.parseTerm(value);
+                        let.value = &try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "next")) {
-                        let.next = try self.parseTerm(value);
+                        let.next = &try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         let.location = try self.parseLoc();
                     }
@@ -240,7 +240,7 @@ pub const ASTParser = struct {
                     if (std.mem.eql(u8, value, "parameters")) {
                         function.parameters = try self.parseParameters();
                     } else if (std.mem.eql(u8, value, "value")) {
-                        function.value = try self.parseTerm(value);
+                        function.value = &try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         function.location = try self.parseLoc();
                     }
@@ -277,12 +277,12 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "lhs")) {
-                        bin.lhs = try self.parseTerm(value);
+                        bin.lhs = &try self.parseTerm(value);
                         self.println("bin.lhs={any}", .{bin.lhs.varTerm});
                     } else if (std.mem.eql(u8, value, "op")) {
                         bin.op = try self.parseBinaryOp();
                     } else if (std.mem.eql(u8, value, "rhs")) {
-                        bin.rhs = try self.parseTerm(value);
+                        bin.rhs = &try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         bin.location = try self.parseLoc();
                     }
@@ -365,7 +365,7 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "callee")) {
-                        call.callee = try self.parseTerm(value);
+                        call.callee = &try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "arguments")) {
                         call.arguments = try self.parseTerms(value);
                     } else if (std.mem.eql(u8, value, "location")) {
@@ -395,7 +395,7 @@ pub const ASTParser = struct {
                 },
                 .string => |value| {
                     if (std.mem.eql(u8, value, "value")) {
-                        print.value = try self.parseTerm(value);
+                        print.value = &try self.parseTerm(value);
                     } else if (std.mem.eql(u8, value, "location")) {
                         print.location = try self.parseLoc();
                     }
@@ -510,17 +510,17 @@ pub const ASTParser = struct {
                         };
                         switch (kindEnum) {
                             .Let => {
-                                const let = &try self.parseLet();
+                                const let = try self.parseLet();
                                 term = spec.Term{ .let = let };
                                 break;
                             },
                             .Function => {
-                                const function = &try self.parseFunction();
+                                const function = try self.parseFunction();
                                 term = spec.Term{ .function = function };
                                 break;
                             },
                             .Binary => {
-                                const binary = &try self.parseBinary();
+                                const binary = try self.parseBinary();
                                 term = spec.Term{ .binary = binary };
                                 break;
                             },
@@ -534,12 +534,12 @@ pub const ASTParser = struct {
                                 break;
                             },
                             .Call => {
-                                const call = &try self.parseCall();
+                                const call = try self.parseCall();
                                 term = spec.Term{ .call = call };
                                 break;
                             },
                             .Print => {
-                                const print = &try self.parsePrint();
+                                const print = try self.parsePrint();
                                 term = spec.Term{ .print = print };
                                 break;
                             },

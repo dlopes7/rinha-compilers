@@ -8,16 +8,16 @@ pub const File = struct {
 };
 
 pub const Term = union(enum) {
-    function: *const Function,
-    let: *const Let,
+    function: Function,
+    let: Let,
     ifTerm: If,
     varTerm: Var,
-    binary: *const Binary,
+    binary: Binary,
     int: Int,
     str: Str,
     boolean: Bool,
-    call: *const Call,
-    print: *const Print,
+    call: Call,
+    print: Print,
     tuple: *Tuple,
 };
 
@@ -96,8 +96,8 @@ pub const If = struct {
 pub const Let = struct {
     kind: ValidTerms,
     name: Parameter,
-    value: Term,
-    next: Term,
+    value: *const Term,
+    next: *const Term,
     location: Loc,
 };
 pub const Str = struct {
@@ -117,42 +117,42 @@ pub const Int = struct {
 };
 pub const Binary = struct {
     kind: ValidTerms,
-    lhs: Term,
+    lhs: *const Term,
     op: BinaryOp,
-    rhs: Term,
+    rhs: *const Term,
     location: Loc,
 };
 pub const Call = struct {
     kind: ValidTerms,
-    callee: Term,
+    callee: *const Term,
     arguments: ArrayList(Term),
     location: Loc,
 };
 pub const Function = struct {
     kind: ValidTerms,
     parameters: ArrayList(Parameter),
-    value: Term,
+    value: *const Term,
     location: Loc,
 };
 pub const Print = struct {
     kind: ValidTerms,
-    value: Term,
+    value: *const Term,
     location: Loc,
 };
 pub const First = struct {
     kind: ValidTerms,
-    value: Term,
+    value: *const Term,
     location: Loc,
 };
 pub const Second = struct {
     kind: ValidTerms,
-    value: Term,
+    value: *const Term,
     location: Loc,
 };
 pub const Tuple = struct {
     kind: ValidTerms,
-    first: Term,
-    second: Term,
+    first: *const Term,
+    second: *const Term,
     location: Loc,
 };
 pub const Var = struct {
