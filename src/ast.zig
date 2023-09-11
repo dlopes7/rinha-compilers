@@ -621,15 +621,17 @@ pub const ASTParser = struct {
             .string => |s| {
                 if (std.mem.eql(u8, s, "expression")) {
                     var program = try self.parseTerm("expression");
-                    // _ = try eval.eval(program, self.allocator);
-                    var terms: ArrayList(spec.Term) = ArrayList(spec.Term).init(self.allocator);
-                    try eval.traverse(program, &terms);
-                    var i: usize = terms.items.len;
-                    while (i > 0) {
-                        i -= 1;
-                        // self.println("Traversed term {any}", .{terms.items[i]});
-                        _ = try eval.eval(terms.items[i], self.allocator);
-                    }
+                    var e = try eval.eval(program, self.allocator);
+                    _ = e;
+                    // try eval.interpret(e);
+                    // var terms: ArrayList(spec.Term) = ArrayList(spec.Term).init(self.allocator);
+                    // try eval.traverse(program, &terms);
+                    // var i: usize = terms.items.len;
+                    // while (i > 0) {
+                    //     i -= 1;
+                    //     // self.println("Traversed term {any}", .{terms.items[i]});
+                    //     _ = try eval.eval(terms.items[i], self.allocator);
+                    // }
                 } else if (std.mem.eql(u8, s, "location")) {
                     _ = try self.parseLoc();
                 }
